@@ -307,26 +307,20 @@ map <- create_perth_basemap() %>%
 
 ## Screenshots
 
-*Dashboard Overview Tab*
+*Dashboard Overview Tab - Summary statistics and cohort description*
 ![Overview](inst/screenshots/overview.png)
 
-*Geospatial Map with Patient Locations*
+*Geospatial Map - Interactive Leaflet map with patient locations and environmental overlays*
 ![Map](inst/screenshots/map.png)
 
-*Lung Function Trajectories*
+*Lung Function Trajectories - Individual and population lung function analysis*
 ![Trajectories](inst/screenshots/trajectories.png)
 
-*Risk Prediction Models*
+*Risk Prediction Models - Statistical models and odds ratios visualization*
 ![Risk](inst/screenshots/risk.png)
 
-*Risk Tier Visualization*
-![Risk Tiers](inst/screenshots/risk_tiers.png)
-
-*Healthcare Access Overlay*
-![Healthcare Access](inst/screenshots/healthcare_access.png)
-
-*Time-Series Animation*
-![Animation](inst/screenshots/animation.png)
+*Data Explorer - Interactive data table with filtering and download options*
+![Data Explorer](inst/screenshots/data.png)
 
 ## Project Structure
 

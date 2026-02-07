@@ -119,34 +119,44 @@ ui <- dashboardPage(
     tabItems(
       # Overview Tab
       tabItem(tabName = "overview",
-              overviewUI("overview")
+        fluidRow(
+          overviewUI("overview")
+        )
       ),
       
       # Map Tab
       tabItem(tabName = "map",
-              mapUI("map")
+        fluidRow(
+          mapUI("map")
+        )
       ),
       
       # Trajectories Tab
       tabItem(tabName = "trajectories",
-              trajectoriesUI("trajectories")
+        fluidRow(
+          trajectoriesUI("trajectories")
+        )
       ),
       
       # Risk Tab
       tabItem(tabName = "risk",
-              riskUI("risk")
+        fluidRow(
+          riskUI("risk")
+        )
       ),
       
       # Data Tab
       tabItem(tabName = "data",
-              dataUI("data")
-      ),
-      
-      # Data source note
-      div(class = "data-source-note",
-          "Data: Synthetic individual-level data calibrated to real ABS/AIHW aggregate statistics. ",
-          "See DATA_SOURCES.md for details."
+        fluidRow(
+          dataUI("data")
+        )
       )
+    ),
+    
+    # Data source note
+    div(class = "data-source-note",
+        "Data: Synthetic individual-level data calibrated to real ABS/AIHW aggregate statistics. ",
+        "See DATA_SOURCES.md for details."
     )
   )
 )
