@@ -415,7 +415,6 @@ mapServer <- function(id, data) {
       # Clear existing layers
       leafletProxy("main_map") %>%
         clearMarkers() %>%
-        clearHeatmap() %>%
         clearShapes()
 
       # Add layer based on selection
@@ -458,31 +457,66 @@ mapServer <- function(id, data) {
           )
 
       } else if (input$map_layer == "heatmap") {
-        # Create asthma prevalence heatmap
+        # Create asthma prevalence heatmap using circle markers
         asthma_numeric <- as.numeric(map_df$asthma_diagnosis == "Yes")
+        
+        # Use color intensity for asthma prevalence
+        pal <- colorNumeric(
+          palette = c("blue", "yellow", "red"),
+          domain = asthma_numeric
+        )
 
         leafletProxy("main_map") %>%
-          addHeatmap(
+          addCircleMarkers(
             data = map_df,
             lng = ~longitude,
             lat = ~latitude,
-            intensity = asthma_numeric,
-            blur = 20,
-            max = 0.5,
-            radius = 25
+            color = ~pal(asthma_numeric),
+            fillColor = ~pal(asthma_numeric),
+            radius = 8,
+            fillOpacity = 0.6,
+            stroke = FALSE,
+            popup = paste0(
+              "<b>Asthma:</b> ", map_df$asthma_diagnosis, "<br>",
+              "<b>Patient ID:</b> ", map_df$patient_id
+            )
+          ) %>%
+          addLegend(
+            position = "bottomright",
+            pal = pal,
+            values = asthma_numeric,
+            title = "Asthma (1=Yes, 0=No)",
+            opacity = 0.8
           )
 
       } else if (input$map_layer == "exacerbations") {
-        # Heatmap by exacerbation count
+        # Exacerbation density using circle markers
+        pal <- colorNumeric(
+          palette = "YlOrRd",
+          domain = map_df$exacerbation_count
+        )
+
         leafletProxy("main_map") %>%
-          addHeatmap(
+          addCircleMarkers(
             data = map_df,
             lng = ~longitude,
             lat = ~latitude,
-            intensity = ~exacerbation_count,
-            blur = 20,
-            max = max(map_df$exacerbation_count, na.rm = TRUE),
-            radius = 25
+            color = ~pal(exacerbation_count),
+            fillColor = ~pal(exacerbation_count),
+            radius = ~sqrt(exacerbation_count + 1) * 3,
+            fillOpacity = 0.6,
+            stroke = FALSE,
+            popup = paste0(
+              "<b>Exacerbations:</b> ", map_df$exacerbation_count, "<br>",
+              "<b>Patient ID:</b> ", map_df$patient_id
+            )
+          ) %>%
+          addLegend(
+            position = "bottomright",
+            pal = pal,
+            values = map_df$exacerbation_count,
+            title = "Exacerbation Count",
+            opacity = 0.8
           )
 
       } else if (input$map_layer == "pm25") {
@@ -547,14 +581,41 @@ mapServer <- function(id, data) {
         }
 
       } else if (input$map_layer == "healthcare_access") {
-        # Healthcare access layer
+        # Healthcare access layer - simplified version
         access_analysis <- healthcare_access_data()
 
         if (!is.null(access_analysis)) {
-          leafletProxy("main_map") <- add_healthcare_access_layer(
-            leafletProxy("main_map"),
-            access_analysis$data
-          )
+          # Show travel time as circle colors
+          access_data <- access_analysis$data
+          if (!is.null(access_data) && "travel_time_min" %in% names(access_data)) {
+            pal <- colorNumeric(
+              palette = c("green", "yellow", "red"),
+              domain = access_data$travel_time_min
+            )
+            
+            leafletProxy("main_map") %>%
+              addCircleMarkers(
+                data = access_data,
+                lng = ~longitude,
+                lat = ~latitude,
+                color = ~pal(travel_time_min),
+                fillColor = ~pal(travel_time_min),
+                radius = 5,
+                fillOpacity = 0.7,
+                stroke = FALSE,
+                popup = paste0(
+                  "<b>Travel Time:</b> ", round(access_data$travel_time_min, 1), " min<br>",
+                  "<b>Nearest Facility:</b> ", access_data$nearest_facility
+                )
+              ) %>%
+              addLegend(
+                position = "bottomright",
+                pal = pal,
+                values = access_data$travel_time_min,
+                title = "Travel Time (min)",
+                opacity = 0.8
+              )
+          }
 
           # Add facility markers
           facilities <- healthcare_facilities()
