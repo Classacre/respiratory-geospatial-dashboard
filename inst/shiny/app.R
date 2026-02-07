@@ -2,6 +2,13 @@
 #
 # This is the main Shiny application file for the pediatric respiratory
 # health geospatial analysis dashboard.
+#
+# Data Sources:
+# - ABS National Health Survey (aggregate SA2-level asthma prevalence)
+# - AIHW respiratory health statistics
+# - BoM weather station data
+# - WA Department of Health air quality monitoring
+# - Individual-level data is synthetic but calibrated to real aggregate statistics
 
 library(shiny)
 library(shinydashboard)
@@ -12,6 +19,7 @@ library(dplyr)
 library(ggplot2)
 library(viridis)
 library(scales)
+library(geosphere)
 
 # Source modules
 source("modules/overview_module.R")
@@ -26,7 +34,11 @@ ui <- dashboardPage(
   
   dashboardHeader(
     title = "Pediatric Respiratory Health Dashboard",
-    titleWidth = 350
+    titleWidth = 350,
+    tags$li(class = "dropdown",
+            tags$a(href = "https://github.com/Classacre/respiratory-geospatial-dashboard/blob/main/DATA_SOURCES.md",
+                   target = "_blank",
+                   "Data Sources"))
   ),
   
   dashboardSidebar(
@@ -95,6 +107,12 @@ ui <- dashboardPage(
           padding-top: 10px;
           padding-bottom: 10px;
         }
+        .data-source-note {
+          font-size: 11px;
+          color: #666;
+          font-style: italic;
+          padding: 5px;
+        }
       "))
     ),
     
@@ -122,6 +140,12 @@ ui <- dashboardPage(
       # Data Tab
       tabItem(tabName = "data",
               dataUI("data")
+      ),
+      
+      # Data source note
+      div(class = "data-source-note",
+          "Data: Synthetic individual-level data calibrated to real ABS/AIHW aggregate statistics. ",
+          "See DATA_SOURCES.md for details."
       )
     )
   )
@@ -132,20 +156,23 @@ server <- function(input, output, session) {
   
   # Load or generate data
   data <- reactive({
-    # Try to load package data, otherwise generate synthetic
-    if (exists("respiratory_data", envir = .GlobalEnv)) {
-      return(get("respiratory_data", envir = .GlobalEnv))
+    # Use enhanced data generation calibrated to real ABS/AIHW statistics
+    if (file.exists("../../R/real_data_import.R")) {
+      source("../../R/real_data_import.R", local = TRUE)
+      source("../../R/enhanced_data_generation.R", local = TRUE)
+      
+      message("Generating synthetic data calibrated to real ABS/AIHW statistics...")
+      return(generate_realistic_respiratory_data(n_patients = 5000, seed = 42))
     }
     
-    # Generate synthetic data if not available
-    if (file.exists("../../data/respiratory_data.rda")) {
-      load("../../data/respiratory_data.rda")
-      return(respiratory_data)
+    # Fallback to basic synthetic data
+    if (file.exists("../../R/data_processing.R")) {
+      source("../../R/data_processing.R", local = TRUE)
+      return(generate_synthetic_data(n_patients = 5000))
     }
     
-    # Fallback: generate on the fly
-    source("../../R/data_processing.R", local = TRUE)
-    generate_synthetic_data(n_patients = 5000)
+    # Last resort: empty data frame with correct structure
+    return(data.frame())
   })
   
   # Filtered data based on global filters

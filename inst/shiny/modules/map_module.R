@@ -93,13 +93,27 @@ mapServer <- function(id, data) {
     
     # Reactive for air quality stations
     stations_data <- reactive({
-      if (file.exists("../../data/air_quality_stations.rda")) {
-        load("../../data/air_quality_stations.rda")
-        return(air_quality_stations)
+      # Use real Perth air quality monitoring stations
+      if (file.exists("../../R/real_data_import.R")) {
+        source("../../R/real_data_import.R", local = TRUE)
+        return(get_perth_air_quality_stations())
       }
-      # Generate if not available
-      source("../../R/data_processing.R", local = TRUE)
-      generate_air_quality_stations(15)
+      
+      # Fallback to basic generation
+      if (file.exists("../../R/data_processing.R")) {
+        source("../../R/data_processing.R", local = TRUE)
+        return(generate_air_quality_stations(15))
+      }
+      
+      # Return empty dataframe with correct structure
+      return(data.frame(
+        station_id = character(),
+        station_name = character(),
+        latitude = numeric(),
+        longitude = numeric(),
+        pm25_avg = numeric(),
+        stringsAsFactors = FALSE
+      ))
     })
     
     # Filter data by time
@@ -238,25 +252,29 @@ mapServer <- function(id, data) {
       if (input$show_stations) {
         stations <- stations_data()
         
-        popup_content <- paste0(
-          "<b>Station:</b> ", stations$station_name, "<br>",
-          "<b>PM2.5:</b> ", stations$pm25_avg, " μg/m³<br>",
-          "<b>PM10:</b> ", stations$pm10_avg, " μg/m³"
-        )
-        
-        leafletProxy("main_map") %>%
-          addAwesomeMarkers(
-            data = stations,
-            lng = ~longitude,
-            lat = ~latitude,
-            icon = awesomeIcons(
-              icon = "cloud",
-              library = "fa",
-              markerColor = "blue"
-            ),
-            popup = popup_content,
-            group = "Air Quality Stations"
+        if (nrow(stations) > 0) {
+          popup_content <- paste0(
+            "<b>Station:</b> ", stations$station_name, "<br>",
+            "<b>Type:</b> ", stations$station_type, "<br>",
+            "<b>PM2.5:</b> ", stations$pm25_avg, " μg/m³<br>",
+            "<b>PM10:</b> ", stations$pm10_avg, " μg/m³<br>",
+            "<b>NO2:</b> ", stations$no2_avg, " ppb"
           )
+          
+          leafletProxy("main_map") %>%
+            addAwesomeMarkers(
+              data = stations,
+              lng = ~longitude,
+              lat = ~latitude,
+              icon = awesomeIcons(
+                icon = "cloud",
+                library = "fa",
+                markerColor = "blue"
+              ),
+              popup = popup_content,
+              group = "Air Quality Stations"
+            )
+        }
       }
     })
     
@@ -333,6 +351,11 @@ mapServer <- function(id, data) {
     output$map_legend <- renderUI({
       HTML("
         <div style='font-size: 12px;'>
+          <p><strong>Data Sources:</strong></p>
+          <ul>
+            <li>Individual patients: Synthetic data (calibrated to ABS/AIHW)</li>
+            <li>Air quality stations: Real WA monitoring network</li>
+          </ul>
           <p><strong>Map Legend:</strong></p>
           <ul>
             <li><span style='color: #2E86AB;'>●</span> No Asthma</li>
