@@ -1,13 +1,14 @@
 Package: respiratorygeospatial
 Type: Package
 Title: Pediatric Respiratory Geospatial Health Analysis Dashboard
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person("Developer", "Name", email = "dev@example.com", role = c("aut", "cre"))
 )
 Description: A comprehensive R Shiny dashboard for analyzing pediatric respiratory 
     health data with geospatial components. Includes tools for spatial analysis,
-    risk modeling, and interactive visualization of lung function trajectories.
+    risk modeling, Monte Carlo significance testing, risk stratification, healthcare
+    access analysis, and interactive visualization of lung function trajectories.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

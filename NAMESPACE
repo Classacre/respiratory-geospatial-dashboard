@@ -1,3 +1,7 @@
 exportPattern("^[[:alpha:]]+")
-importFrom("stats", "coef", "predict", "residuals", "fitted", "na.omit")
+importFrom("stats", "coef", "predict", "residuals", "fitted", "na.omit",
+           "plogis", "rbinom", "rpois", "rgamma", "rnorm", "runif", "sample",
+           "ecdf", "ave", "aggregate", "as.formula", "cor", "cut", "glm",
+           "lm", "median", "optim", "pnorm", "qnorm", "sd", "var", "setNames")
 importFrom("utils", "data", "head", "read.csv", "write.csv")
+importFrom("methods", "is")

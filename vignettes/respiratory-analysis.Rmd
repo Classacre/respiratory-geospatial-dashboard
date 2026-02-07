@@ -22,6 +22,8 @@ This vignette demonstrates the methodology and analysis workflow for the Pediatr
 2. **Environmental risk factors** including air quality and pollen
 3. **Longitudinal trajectories** of lung function development
 4. **Risk prediction models** for asthma outcomes
+5. **Advanced spatial statistics** including Monte Carlo significance testing
+6. **Healthcare access analysis** and opportunity indices
 
 ## Data Structure
 
@@ -32,6 +34,9 @@ The synthetic dataset includes 5,000 pediatric patients (ages 2-18) in the Perth
 - **Lung function measures**: FEV1, FVC, FEV1/FVC ratio
 - **Environmental exposures**: PM2.5, pollen index, temperature
 - **Clinical outcomes**: Asthma diagnosis, exacerbations, hospitalizations
+- **Medication use**: Controller vs rescue medication indicators
+- **Quality of care**: Composite index of outpatient visits and medication adherence
+- **Healthcare utilization**: ED visits, hospitalizations, outpatient ratio
 - **Longitudinal data**: Multiple visits per patient over time
 
 ## Spatial Analysis Methodology
@@ -54,6 +59,122 @@ asthma_numeric <- as.numeric(respiratory_data$asthma_diagnosis == "Yes")
 moran_result <- calculate_morans_i(asthma_numeric, W)
 
 print(moran_result)
+```
+
+### Monte Carlo Hotspot Significance Testing
+
+Following Roberts et al. (2006), we implement Monte Carlo simulation to test the significance of spatial clusters:
+
+```{r monte-carlo-hotspots, eval=FALSE}
+# Detect hotspots with Monte Carlo significance testing
+hotspot_result <- monte_carlo_hotspot_test(
+  respiratory_data,
+  outcome_col = "exacerbation_count",
+  n_simulations = 999,
+  bandwidth = 5,
+  significance_level = 0.05
+)
+
+# View summary
+print(hotspot_result)
+
+# Plot significance levels
+plot(hotspot_result)
+
+# Access classified data
+significant_hotspots <- hotspot_result$data[hotspot_result$data$p_value < 0.05, ]
+table(significant_hotspots$hotspot_class)
+```
+
+### Getis-Ord Gi* Statistic
+
+The Getis-Ord Gi* statistic identifies statistically significant hotspots and coldspots:
+
+```{r getis-ord, eval=FALSE}
+# Calculate Gi* statistics
+gi_result <- calculate_getis_ord_gi(
+  respiratory_data,
+  outcome_col = "asthma_rate",
+  bandwidth = 5,
+  significance_level = 0.05
+)
+
+# View hotspot classifications
+table(gi_result$gi_classification)
+```
+
+### Spatial Scan Statistic
+
+Kulldorff's spatial scan statistic detects clusters using a circular scanning window:
+
+```{r spatial-scan, eval=FALSE}
+# Prepare case and population data
+scan_data <- respiratory_data %>%
+  group_by(latitude, longitude) %>%
+  summarise(
+    cases = sum(asthma_diagnosis == "Yes"),
+    population = n(),
+    .groups = "drop"
+  )
+
+# Run spatial scan
+scan_result <- spatial_scan_statistic(
+  scan_data,
+  case_col = "cases",
+  population_col = "population",
+  max_radius = 10,
+  n_simulations = 999
+)
+
+print(scan_result)
+```
+
+### Variogram Analysis
+
+Understand the spatial correlation structure:
+
+```{r variogram, eval=FALSE}
+# Analyze spatial correlation of PM2.5
+vgm_result <- variogram_analysis(
+  respiratory_data,
+  outcome_col = "pm25",
+  max_dist = 20,
+  n_lags = 15
+)
+
+print(vgm_result)
+
+# Access parameters
+vgm_result$parameters$range  # Effective range in km
+vgm_result$spatial_dependence$has_structure  # Check for spatial structure
+```
+
+### Dasymetric Mapping
+
+Refine spatial interpolation using population density and land use:
+
+```{r dasymetric, eval=FALSE}
+# Create interpolation grid
+bbox <- get_perth_bbox()
+grid <- create_interpolation_grid(bbox, resolution = 1)
+
+# Simple IDW interpolation
+idw_result <- idw_interpolate(
+  respiratory_data,
+  value_col = "pm25",
+  grid = grid,
+  power = 2
+)
+
+# Dasymetric mapping (with land use weights)
+dasymetric_result <- dasymetric_mapping(
+  respiratory_data,
+  value_col = "pm25",
+  grid = grid,
+  residential_weight = 1.0,
+  commercial_weight = 0.3,
+  industrial_weight = 0.1
+)
 ```
 
 ### Hotspot Detection
@@ -90,6 +211,58 @@ or_table <- calculate_odds_ratios(asthma_model)
 print(or_table)
 ```
 
+### Risk Stratification
+
+Categorize patients into risk tiers:
+
+```{r risk-stratification, eval=FALSE}
+# Stratify patients by risk
+risk_result <- stratify_risk(
+  respiratory_data,
+  environmental_vars = c("pm25", "pollen_index"),
+  demographic_vars = c("age_years", "ses_score"),
+  clinical_vars = c("exacerbation_count", "hospitalization_count"),
+  tier_thresholds = c(0.33, 0.67),
+  tier_labels = c("Low", "Medium", "High")
+)
+
+# View tier distribution
+print(risk_result)
+
+# Access stratified data
+stratified_data <- risk_result$data
+table(stratified_data$risk_tier)
+```
+
+### Composite Opportunity Index
+
+Based on Beck et al. (2017), create a composite opportunity index:
+
+```{r opportunity-index, eval=FALSE}
+# Calculate distance to nearest air quality station first
+stations <- generate_air_quality_stations(15)
+respiratory_data$distance_to_station <- sapply(1:nrow(respiratory_data), function(i) {
+  patient_coord <- c(respiratory_data$longitude[i], respiratory_data$latitude[i])
+  station_coords <- as.matrix(stations[, c("longitude", "latitude")])
+  min(geosphere::distHaversine(patient_coord, station_coords) / 1000)
+})
+
+# Calculate opportunity index
+opp_result <- calculate_opportunity_index(
+  respiratory_data,
+  ses_col = "ses_score",
+  pm25_col = "pm25",
+  pollen_col = "pollen_index",
+  distance_col = "distance_to_station"
+)
+
+# View opportunity distribution
+table(opp_result$opportunity_quintile)
+
+# Visualize relationship with outcomes
+plot_opportunity_outcome(opp_result, "asthma_diagnosis")
+```
+
 ### Mixed-Effects Models for Lung Function
 
 Longitudinal lung function trajectories with random effects:
@@ -104,6 +277,54 @@ fev1_model <- fit_lung_function_model(
 )
 
 summary(fev1_model)
+```
+
+## Healthcare Access Analysis
+
+### Travel Time Calculation
+
+Estimate travel time to nearest healthcare facility:
+
+```{r travel-time, eval=FALSE}
+# Define healthcare facilities
+facilities <- data.frame(
+  facility_name = c("Perth Children's Hospital", "Sir Charles Gairdner Hospital",
+                    "Royal Perth Hospital", "Fiona Stanley Hospital"),
+  latitude = c(-31.944, -31.969, -31.954, -32.073),
+  longitude = c(115.819, 115.821, 115.869, 115.845)
+)
+
+# Calculate travel times
+access_data <- calculate_travel_time(
+  respiratory_data,
+  facilities,
+  avg_speed_kmh = 40,
+  mode = "driving"
+)
+
+# View results
+summary(access_data$travel_time_minutes)
+```
+
+### Healthcare Desert Identification
+
+Identify areas with poor healthcare access:
+
+```{r healthcare-deserts, eval=FALSE}
+# Identify healthcare deserts
+desert_analysis <- identify_deserts(
+  access_data,
+  time_threshold = 30,      # 30 minutes
+  distance_threshold = 15    # 15 km
+)
+
+print(desert_analysis)
+
+# Access summary statistics
+desert_analysis$access_summary
+
+# Compare risk factors in desert vs non-desert areas
+desert_analysis$desert_risk_comparison
 ```
 
 ## Environmental Exposure Analysis
@@ -165,10 +386,46 @@ run_dashboard(port = 3838, launch.browser = TRUE)
 ### Dashboard Features
 
 1. **Overview Tab**: Summary statistics and demographic distributions
-2. **Geospatial Map**: Interactive map with multiple layer options
+2. **Geospatial Map**: Interactive map with multiple layer options including:
+   - Patient locations and heatmaps
+   - Risk tier visualization
+   - Healthcare access overlay
+   - Opportunity index display
+   - Time-series animation
+   - Alert system for high-rate areas
 3. **Lung Function Tab**: Trajectory analysis and growth curves
 4. **Risk Prediction Tab**: Model results and performance metrics
 5. **Data Explorer Tab**: Interactive data table with download options
+
+### Real-Time Surveillance Features
+
+The dashboard includes real-time surveillance capabilities:
+
+- **Time-series animation**: Visualize changes over time with adjustable speed
+- **Cumulative case tracking**: Monitor cumulative cases with monthly updates
+- **Alert system**: Areas exceeding threshold rates are highlighted
+
+```{r surveillance, eval=FALSE}
+# Example: Detect alert areas programmatically
+alert_threshold <- 100  # cases per 1000
+
+# Calculate rates by geographic grid
+grid_rates <- respiratory_data %>%
+  mutate(
+    lat_bin = cut(latitude, breaks = 8),
+    lon_bin = cut(longitude, breaks = 8)
+  ) %>%
+  group_by(lat_bin, lon_bin) %>%
+  summarise(
+    n = n(),
+    cases = sum(asthma_diagnosis == "Yes"),
+    rate_per_1000 = cases / n * 1000,
+    .groups = "drop"
+  ) %>%
+  filter(rate_per_1000 > alert_threshold)
+
+print(grid_rates)
+```
 
 ## Key Findings
 
@@ -177,9 +434,71 @@ Based on the synthetic data analysis:
 1. **Spatial Patterns**: Higher asthma prevalence in areas with elevated PM2.5
 2. **Environmental Effects**: Each 1 μg/m³ increase in PM2.5 associated with decreased FEV1
 3. **Socioeconomic Gradients**: Lower SES associated with higher exacerbation rates
-4. **Sex Differences**: Males show slightly higher lung function values
+4. **Healthcare Access**: Areas >30 minutes from facilities show higher hospitalization rates
+5. **Opportunity Index**: Lower opportunity scores correlate with worse asthma outcomes
+6. **Risk Stratification**: High-risk patients account for disproportionate healthcare utilization
+
+## New Health Indicators
+
+The enhanced dataset includes additional clinical indicators:
+
+### Medication Use
+
+```{r medication-use, eval=FALSE}
+# Analyze medication patterns
+medication_summary <- respiratory_data %>%
+  distinct(patient_id, .keep_all = TRUE) %>%
+  group_by(asthma_diagnosis, medication_use) %>%
+  summarise(n = n(), .groups = "drop")
+
+print(medication_summary)
+```
+
+### Quality of Care Index
+
+```{r quality-care, eval=FALSE}
+# Quality of care by SES quintile
+quality_summary <- respiratory_data %>%
+  distinct(patient_id, .keep_all = TRUE) %>%
+  filter(asthma_diagnosis == "Yes") %>%
+  group_by(ses_quintile) %>%
+  summarise(
+    mean_quality_index = mean(quality_care_index, na.rm = TRUE),
+    mean_adherence = mean(medication_adherence, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(quality_summary)
+```
+
+### Healthcare Utilization
+
+```{r healthcare-utilization, eval=FALSE}
+# Healthcare utilization by risk tier
+utilization_summary <- respiratory_data %>%
+  distinct(patient_id, .keep_all = TRUE) %>%
+  group_by(risk_tier) %>%
+  summarise(
+    mean_ed_visits = mean(ed_visits, na.rm = TRUE),
+    mean_hospitalizations = mean(hospitalization_count, na.rm = TRUE),
+    mean_outpatient = mean(outpatient_visits, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(utilization_summary)
+```
 
 ## References
+
+- **Roberts EM, et al. (2006)**: Progress in pediatric asthma surveillance II: geospatial patterns of asthma in Alameda County, California. *Preventing Chronic Disease*, 3(3):A92.
+
+- **Beck AF, et al. (2017)**: The Child Opportunity Index and Disparities in Pediatric Asthma Hospitalizations across one Ohio Metropolitan Area, 2011-2013. *The Journal of Pediatrics*, 190:200-206.
+
+- **Getis A, & Ord JK (1992)**: The analysis of spatial association by use of distance statistics. *Geographical Analysis*, 24(3), 189-206.
+
+- **Kulldorff M (1997)**: A spatial scan statistic. *Communications in Statistics-Theory and Methods*, 26(6), 1481-1496.
+
+- **Mennis J (2003)**: Generating surface models of population using dasymetric mapping. *The Professional Geographer*, 55(1), 31-42.
 
 - Global Initiative for Asthma (GINA) Guidelines
 - Perth Air Quality Monitoring Network
