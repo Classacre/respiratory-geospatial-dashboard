@@ -76,6 +76,30 @@ git clone https://github.com/Classacre/respiratory-geospatial-dashboard.git
 devtools::install("respiratory-geospatial-dashboard")
 ```
 
+## Data Setup (IMPORTANT)
+
+Before running the dashboard, you need to download real data sources:
+
+```bash
+# Navigate to data-raw folder
+cd respiratory-geospatial-dashboard/data-raw
+
+# Download all real data sources
+Rscript download_all_data.R
+
+# Generate synthetic patients calibrated to real data
+Rscript generate_synthetic_patients.R
+```
+
+### Manual Data Downloads
+
+Some data sources require manual download. See:
+- `data-raw/downloads/DWER_DOWNLOAD_INSTRUCTIONS.txt` - Air quality data
+- `data-raw/downloads/ABS_BOUNDARIES_INSTRUCTIONS.txt` - Geographic boundaries
+- `data-raw/downloads/ABS_HEALTH_INSTRUCTIONS.txt` - Health statistics
+
+See [data-raw/README.md](data-raw/README.md) for detailed instructions.
+
 ## Quick Start
 
 ```r
