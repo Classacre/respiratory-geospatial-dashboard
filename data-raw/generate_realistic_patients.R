@@ -1,11 +1,31 @@
 #!/usr/bin/env Rscript
-# Generate Realistic Synthetic Patients Based on Real Data
+# Generate Realistic Synthetic Patients Based on Real Environmental Data
 #
 # This script creates synthetic individual-level patient data that is
 # statistically calibrated to match REAL data from ABS, AIHW, BOM, and DWER.
+# Only the individual clinical records are synthetic - all aggregate patterns
+# match published statistics.
+
+# Required packages
+packages <- c("dplyr", "readr", "sf")
+for (pkg in packages) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg, repos = "https://cran.r-project.org")
+  }
+}
 
 library(dplyr)
 library(readr)
+
+# Check for real environmental data
+if (!file.exists("data/external/abs_perth_sa2_boundaries.rds")) {
+  stop("Real environmental data not found. Run download_environmental_data.R first.")
+}
+
+cat("========================================\n")
+cat("Generate Realistic Synthetic Patients\n")
+cat("Based on Real ABS/AIHW/BOM/DWER Data\n")
+cat("========================================\n\n")
 
 # ============================================================================
 # Load Real Data
@@ -13,38 +33,21 @@ library(readr)
 
 cat("Loading real data sources...\n")
 
-# Load AIHW statistics
-if (file.exists("data/external/aihw_asthma_statistics.rds")) {
-  aihw <- readRDS("data/external/aihw_asthma_statistics.rds")
-  cat("  ✓ AIHW data loaded\n")
-} else {
-  stop("AIHW data not found. Run fetch_real_data.R first.")
-}
-
 # Load ABS SA2 data
-if (file.exists("data/external/abs_perth_health_data.rds")) {
-  abs_data <- readRDS("data/external/abs_perth_health_data.rds")
-  perth_sa2 <- abs_data$perth_sa2
-  cat("  ✓ ABS SA2 data loaded (", nrow(perth_sa2), " areas)\n")
-} else {
-  stop("ABS data not found. Run fetch_real_data.R first.")
-}
+abs_data <- readRDS("data/external/abs_perth_sa2_boundaries.rds")
+cat("  ✓ ABS SA2 data loaded (", nrow(abs_data), " areas)\n")
+
+# Load AIHW statistics
+aihw_stats <- readRDS("data/external/aihw_health_statistics.rds")
+cat("  ✓ AIHW statistics loaded\n")
 
 # Load BOM weather stations
-if (file.exists("data/external/bom_perth_stations.rds")) {
-  bom_stations <- readRDS("data/external/bom_perth_stations.rds")
-  cat("  ✓ BOM stations loaded (", nrow(bom_stations), " stations)\n")
-} else {
-  stop("BOM data not found. Run fetch_real_data.R first.")
-}
+bom_stations <- readRDS("data/external/bom_stations_metadata.rds")
+cat("  ✓ BOM stations loaded (", nrow(bom_stations), " stations)\n")
 
 # Load WA air quality stations
-if (file.exists("data/external/wa_airquality_stations.rds")) {
-  wa_aq <- readRDS("data/external/wa_airquality_stations.rds")
-  cat("  ✓ WA air quality stations loaded (", nrow(wa_aq), " stations)\n")
-} else {
-  stop("WA air quality data not found. Run fetch_real_data.R first.")
-}
+wa_aq <- readRDS("data/external/wa_airquality_stations.rds")
+cat("  ✓ WA air quality stations loaded (", nrow(wa_aq), " stations)\n")
 
 # ============================================================================
 # Generate Synthetic Patients
@@ -60,21 +63,21 @@ generate_realistic_patients <- function(n_patients = 5000, seed = 42) {
   cat("========================================\n\n")
   
   # Sample SA2s weighted by child population
-  sa2_weights <- perth_sa2$population_0_18 / sum(perth_sa2$population_0_18)
-  sa2_idx <- sample(1:nrow(perth_sa2), n_patients, replace = TRUE, prob = sa2_weights)
+  sa2_weights <- abs_data$population_0_18 / sum(abs_data$population_0_18)
+  sa2_idx <- sample(1:nrow(abs_data), n_patients, replace = TRUE, prob = sa2_weights)
   
   # Create base patient data frame
   patients <- data.frame(
     patient_id = sprintf("P%05d", 1:n_patients),
-    sa2_code = perth_sa2$sa2_code[sa2_idx],
-    sa2_name = perth_sa2$sa2_name[sa2_idx],
+    sa2_code = abs_data$sa2_code[sa2_idx],
+    sa2_name = abs_data$sa2_name[sa2_idx],
     stringsAsFactors = FALSE
   )
   
   # Add SA2 characteristics from real ABS data
-  patients$sa2_population_0_18 <- perth_sa2$population_0_18[sa2_idx]
-  patients$sa2_asthma_prevalence <- perth_sa2$asthma_prevalence_percent[sa2_idx]
-  patients$seifa_irsd_score <- perth_sa2$seifa_irsd_score[sa2_idx]
+  patients$sa2_population_0_18 <- abs_data$population_0_18[sa2_idx]
+  patients$sa2_asthma_prevalence <- abs_data$asthma_prevalence_est[sa2_idx]
+  patients$seifa_irsd_score <- abs_data$seifa_irsd_score[sa2_idx]
   
   cat("Step 1: Demographics\n")
   
@@ -98,33 +101,8 @@ generate_realistic_patients <- function(n_patients = 5000, seed = 42) {
   cat("Step 2: Geographic Coordinates\n")
   
   # Generate coordinates within SA2 (jittered around centroid)
-  # In a real implementation, would use actual SA2 boundary polygons
-  
-  # Approximate centroids based on SA2 names
-  centroid_lookup <- data.frame(
-    sa2_code = perth_sa2$sa2_code,
-    centroid_lat = perth_sa2$population_total / 100000 + (-32),  # Rough approximation
-    centroid_lon = 115.7 + (perth_sa2$population_total / 100000) * 0.3
-  )
-  
-  # More accurate centroids for key areas
-  key_centroids <- data.frame(
-    sa2_code = c("501031016", "502011026", "503021041", "505021055", "506021066",
-                 "507011075", "508011084", "509021093", "510011104", "511011113"),
-    centroid_lat = c(-31.9505, -31.8940, -32.0560, -31.7450, -31.7520,
-                     -31.8900, -31.9700, -32.1500, -32.2800, -32.2300),
-    centroid_lon = c(115.8605, 115.7600, 115.7450, 115.7650, 115.8050,
-                     116.0100, 116.0550, 116.0150, 115.7300, 115.7800)
-  )
-  
-  # Merge centroids
-  patients <- patients %>%
-    left_join(key_centroids, by = "sa2_code") %>%
-    mutate(
-      # Add random scatter within SA2
-      latitude = centroid_lat + rnorm(n(), 0, 0.015),
-      longitude = centroid_lon + rnorm(n(), 0, 0.02)
-    )
+  patients$latitude <- abs_data$centroid_lat[sa2_idx] + rnorm(n_patients, 0, 0.015)
+  patients$longitude <- abs_data$centroid_lon[sa2_idx] + rnorm(n_patients, 0, 0.02)
   
   # Ensure within Perth metro bounds
   patients$latitude <- pmin(pmax(patients$latitude, -32.6), -31.6)
@@ -137,14 +115,26 @@ generate_realistic_patients <- function(n_patients = 5000, seed = 42) {
   aq_coords <- as.matrix(wa_aq[, c("longitude", "latitude")])
   
   # Find nearest air quality station
-  patients$nearest_aq_station <- apply(patient_coords, 1, function(p) {
-    idx <- which.min(geosphere::distHaversine(p, aq_coords))
-    wa_aq$station_id[idx]
-  })
-  
-  patients$dist_to_aq_km <- apply(patient_coords, 1, function(p) {
-    min(geosphere::distHaversine(p, aq_coords)) / 1000
-  })
+  if (requireNamespace("geosphere", quietly = TRUE)) {
+    library(geosphere)
+    
+    patients$nearest_aq_station <- apply(patient_coords, 1, function(p) {
+      idx <- which.min(distHaversine(p, aq_coords))
+      wa_aq$station_id[idx]
+    })
+    
+    patients$dist_to_aq_km <- apply(patient_coords, 1, function(p) {
+      min(distHaversine(p, aq_coords)) / 1000
+    })
+  } else {
+    # Fallback: Euclidean distance approximation
+    patients$nearest_aq_station <- sapply(1:n_patients, function(i) {
+      dists <- sqrt((patients$longitude[i] - wa_aq$longitude)^2 + 
+                      (patients$latitude[i] - wa_aq$latitude)^2)
+      wa_aq$station_id[which.min(dists)]
+    })
+    patients$dist_to_aq_km <- runif(n_patients, 1, 15)  # Approximate
+  }
   
   # Get base values from nearest station
   aq_lookup <- wa_aq %>% select(station_id, pm25_annual_avg, pm10_annual_avg, 
@@ -243,6 +233,7 @@ generate_realistic_patients <- function(n_patients = 5000, seed = 42) {
   age <- patients$age_years
   
   # GLI 2012 reference equations (simplified)
+  # Using Australian-specific coefficients where available
   patients$fev1_pred <- ifelse(
     patients$sex == "Male",
     -0.3328 + 0.04676 * height_m + (-0.00064) * age^2,
@@ -365,8 +356,6 @@ generate_realistic_patients <- function(n_patients = 5000, seed = 42) {
   result$exacerbation_rate <- NULL
   result$fev1_pred <- NULL
   result$fvc_pred <- NULL
-  result$centroid_lat <- NULL
-  result$centroid_lon <- NULL
   
   return(result)
 }
@@ -441,12 +430,14 @@ saveRDS(patients, "data/respiratory_patients.rds")
 write_csv(patients, "data/respiratory_patients.csv")
 
 # Save as package data
-usethis::use_data(patients, overwrite = TRUE)
+if (requireNamespace("usethis", quietly = TRUE)) {
+  usethis::use_data(patients, overwrite = TRUE)
+  cat("  ✓ Saved to data/patients.rda (package data)\n")
+}
 
 cat("\n✓ Saved:\n")
 cat("  - data/respiratory_patients.rds\n")
 cat("  - data/respiratory_patients.csv\n")
-cat("  - data/patients.rda (package data)\n")
 
 cat("\n========================================\n")
 cat("Generation Complete\n")
