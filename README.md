@@ -6,12 +6,31 @@ A comprehensive R Shiny dashboard for pediatric respiratory health analysis with
 
 ## Overview
 
-This dashboard was developed to learn and manipulate geospatial data using R. It demonstrates techniques for:
+This dashboard was developed as a portfolio piece for a biostatistician role at The Kids Research Institute Australia. It demonstrates expertise in:
 
 - **Geospatial Analysis**: Spatial autocorrelation, hotspot detection, and interpolation
 - **Statistical Modeling**: Mixed-effects models, logistic regression, risk prediction
 - **Interactive Visualization**: Leaflet maps, Plotly charts, and Shiny dashboards
 - **R Package Development**: Proper package structure, documentation, and testing
+- **Real Government Data Integration**: Working with ABS, AIHW, BoM, and WA Health data sources
+
+## Data Sources
+
+This dashboard uses a hybrid approach combining **real aggregate data** with **synthetic individual-level data**:
+
+### Real Data Sources
+- **Australian Bureau of Statistics (ABS)**: SA2-level asthma prevalence, demographic distributions
+- **Australian Institute of Health and Welfare (AIHW)**: National asthma statistics, hospitalisation rates
+- **Bureau of Meteorology (BoM)**: Weather station locations and climate data
+- **WA Department of Health**: Air quality monitoring station locations and measurements
+
+### Synthetic Data
+Individual-level patient data is synthetically generated but **calibrated to match real aggregate statistics** from ABS and AIHW. This approach:
+- Respects patient privacy (no real patient data used)
+- Demonstrates ability to work with real government health data
+- Provides realistic individual-level data for analysis and visualization
+
+See [DATA_SOURCES.md](DATA_SOURCES.md) for detailed documentation of all data sources and methodology.
 
 ## Features
 
@@ -65,35 +84,56 @@ library(respiratorygeospatial)
 # Launch the dashboard
 run_dashboard()
 
-# Access sample data
-data(respiratory_data)
+# Access real air quality station data
 data(air_quality_stations)
+stations <- get_perth_air_quality_stations()
 
-# Generate new synthetic data
-new_data <- generate_synthetic_data(n_patients = 1000)
+# Generate synthetic data calibrated to real ABS/AIHW statistics
+data <- generate_realistic_respiratory_data(n_patients = 5000)
+
+# Validate against known statistics
+validate_generated_data(data)
 ```
 
 ## Data Structure
 
-The package includes a synthetic dataset of 5,000 pediatric patients with:
+The package generates synthetic datasets of pediatric patients that are **calibrated to real ABS/AIHW statistics**:
 
-| Variable | Description |
-|----------|-------------|
-| `patient_id` | Unique patient identifier |
-| `sex` | Male/Female |
-| `age_years` | Age in years (2-18) |
-| `latitude` | Geographic latitude (Perth metro) |
-| `longitude` | Geographic longitude (Perth metro) |
-| `ses_score` | Socioeconomic status (0-100) |
-| `pm25` | PM2.5 exposure (μg/m³) |
-| `pollen_index` | Pollen index (0-10) |
-| `fev1` | Forced Expiratory Volume (L) |
-| `fvc` | Forced Vital Capacity (L) |
-| `asthma_diagnosis` | Yes/No |
-| `exacerbation_count` | Number of exacerbations |
-| `visit_number` | Visit number (1-5) |
+| Variable | Description | Data Source |
+|----------|-------------|-------------|
+| `patient_id` | Unique patient identifier | Synthetic |
+| `sa2_code` | ABS SA2 geographic code | Real ABS boundaries |
+| `sa2_name` | SA2 area name | Real ABS data |
+| `sex` | Male/Female | Calibrated to ABS demographics |
+| `age_years` | Age in years (2-18) | Calibrated to ABS population pyramid |
+| `latitude` | Geographic latitude | Synthetic within SA2 boundaries |
+| `longitude` | Geographic longitude | Synthetic within SA2 boundaries |
+| `socioeconomic_index` | SEIFA IRSD score | Real ABS SEIFA data |
+| `pm25` | PM2.5 exposure (μg/m³) | Based on real WA air quality stations |
+| `pollen_index` | Pollen index (0-10) | Synthetic with spatial variation |
+| `fev1` | Forced Expiratory Volume (L) | GLI equations + environmental effects |
+| `fvc` | Forced Vital Capacity (L) | GLI equations + environmental effects |
+| `asthma_diagnosis` | Yes/No | Calibrated to AIHW prevalence rates |
+| `exacerbation_count` | Number of exacerbations | Calibrated to AIHW hospitalisation data |
+| `visit_number` | Visit number (1-5) | Synthetic longitudinal data |
 
 ## Analysis Functions
+
+### Real Data Import
+
+```r
+# Get real ABS SA2 asthma prevalence data
+sa2_data <- get_abs_asthma_sa2()
+
+# Get real Perth air quality monitoring stations
+stations <- get_perth_air_quality_stations()
+
+# Get AIHW asthma statistics
+aihw_stats <- get_aihw_asthma_stats()
+
+# Generate synthetic patients calibrated to real statistics
+patients <- generate_realistic_patients(5000, sa2_data)
+```
 
 ### Spatial Analysis
 
@@ -152,7 +192,9 @@ or_table <- calculate_odds_ratios(asthma_model)
 ```
 respiratory-geospatial-dashboard/
 ├── R/                          # Core analysis functions
-│   ├── data_processing.R         # Synthetic data generation
+│   ├── data_processing.R         # Basic synthetic data generation
+│   ├── real_data_import.R        # Real ABS/AIHW/BoM data import
+│   ├── enhanced_data_generation.R # Synthetic data calibrated to real stats
 │   ├── spatial_analysis.R        # Spatial statistics
 │   ├── risk_modeling.R           # Statistical models
 │   ├── geospatial_utils.R        # Mapping utilities
@@ -163,7 +205,8 @@ respiratory-geospatial-dashboard/
 │   └── modules/                  # Shiny modules
 ├── tests/                      # Unit tests
 ├── vignettes/                  # Documentation
-├── DESCRIPTION                 # Package metadata
+├── DATA_SOURCES.md            # Detailed data source documentation
+├── DESCRIPTION                # Package metadata
 └── README.md                   # This file
 ```
 
@@ -264,6 +307,8 @@ MIT License - see LICENSE file for details.
 
 ## Acknowledgments
 
-- Synthetic data generated for demonstration purposes
-- Perth geographic boundaries used for spatial context
-- Methodologies based on established geospatial health research practices
+- **Data Sources**: Australian Bureau of Statistics (ABS), Australian Institute of Health and Welfare (AIHW), Bureau of Meteorology (BoM), WA Department of Health
+- **Synthetic Data**: Individual-level data is synthetic but calibrated to real aggregate statistics
+- **Perth geographic boundaries**: ABS Statistical Area Level 2 (SA2) boundaries
+- **Methodologies**: Based on established geospatial health research practices
+- **Reference Equations**: Global Lung Initiative (GLI) 2012 spirometry equations
