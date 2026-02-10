@@ -6,7 +6,7 @@ A comprehensive R Shiny dashboard for pediatric respiratory health analysis with
 
 ## Overview
 
-This dashboard was developed as a portfolio piece for a biostatistician role at The Kids Research Institute Australia. It demonstrates expertise in:
+This dashboard was developed as a self-teaching project to explore geospatial data analysis and visualization techniques in R. It demonstrates techniques in:
 
 - **Geospatial Analysis**: Spatial autocorrelation, hotspot detection, Monte Carlo significance testing, variogram analysis
 - **Statistical Modeling**: Mixed-effects models, logistic regression, risk prediction, risk stratification
